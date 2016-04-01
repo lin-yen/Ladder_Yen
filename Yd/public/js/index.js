@@ -150,6 +150,7 @@ draw.initial = function() {
   context.stroke();
   context.closePath();
 };
+draw.drawSwitch = true;
 draw.break = function(callback){
   clearInterval(drawLine);
   context.strokeStyle = '#3B3A3C';
@@ -182,51 +183,52 @@ draw.result = function(getResult,callback){
     context.closePath();
     count ++;
   }
-
-  // 動畫
-  setTimeout(function() {
-    var drawCount = 1;
-    context.beginPath();
-    context.strokeStyle = '#3B3A3C';
-    context.lineCap = 'round';// 線頭與線尾變圓滑
-    context.lineJoin = 'round';// 線頭與轉角處變圓滑
-    context.moveTo(config[result].path[0].x,config[result].path[0].y);
-    var pass = new Image();
-    pass.src = '/img/first_on.png';
-    pass.onload = function() {
-      context.drawImage(pass, config[result].passX, config[result].passY);
-      setPath(config[result].path, config[result].pathCount);
-    };
-    function setPath(points, pathCount) {
-      var wayPoints = [];
-      for (var i = 1; i < points.length; i++) {
-        var xGap = points[i].x - points[i-1].x;
-        var yGap = points[i].y - points[i-1].y;
-        for (var count = 0; count < pathCount[i-1]; count++) {
-          var x = points[i-1].x + xGap * count / pathCount[i-1];
-          var y = points[i-1].y + yGap * count / pathCount[i-1];
-          wayPoints.push({ x: x, y: y });
+  if(draw.drawSwitch === true){
+    // 動畫
+    setTimeout(function() {
+      var drawCount = 1;
+      context.beginPath();
+      context.strokeStyle = '#3B3A3C';
+      context.lineCap = 'round';// 線頭與線尾變圓滑
+      context.lineJoin = 'round';// 線頭與轉角處變圓滑
+      context.moveTo(config[result].path[0].x,config[result].path[0].y);
+      var pass = new Image();
+      pass.src = '/img/first_on.png';
+      pass.onload = function() {
+        context.drawImage(pass, config[result].passX, config[result].passY);
+        setPath(config[result].path, config[result].pathCount);
+      };
+      function setPath(points, pathCount) {
+        var wayPoints = [];
+        for (var i = 1; i < points.length; i++) {
+          var xGap = points[i].x - points[i-1].x;
+          var yGap = points[i].y - points[i-1].y;
+          for (var count = 0; count < pathCount[i-1]; count++) {
+            var x = points[i-1].x + xGap * count / pathCount[i-1];
+            var y = points[i-1].y + yGap * count / pathCount[i-1];
+            wayPoints.push({ x: x, y: y });
+          }
         }
+        drawLine = setInterval(function(){
+          if(drawCount >= wayPoints.length) {
+            clearInterval(drawLine);
+            context.closePath();
+            var rImg = new Image();
+            rImg.onload = function() {
+              context.drawImage(rImg, config[result].imgX, config[result].imgY);
+              callback();
+            };
+            rImg.src = '/img/lang/'+lang+'/'+config[result].imgName+'.png';
+            return true;
+          }
+          context.lineTo(wayPoints[drawCount].x, wayPoints[drawCount].y);
+          context.stroke();
+          drawCount++;
+        }, 15);
+        return true;
       }
-      drawLine = setInterval(function(){
-        if(drawCount >= wayPoints.length) {
-          clearInterval(drawLine);
-          context.closePath();
-          var rImg = new Image();
-          rImg.onload = function() {
-            context.drawImage(rImg, config[result].imgX, config[result].imgY);
-            callback();
-          };
-          rImg.src = '/img/lang/'+lang+'/'+config[result].imgName+'.png';
-          return true;
-        }
-        context.lineTo(wayPoints[drawCount].x, wayPoints[drawCount].y);
-        context.stroke();
-        drawCount++;
-      }, 15);
-      return true;
-    }
-  },1000);
+    },1000);
+  }
 };
 draw.initial();
 
@@ -355,8 +357,9 @@ document.getElementById('clean').addEventListener('click', function(){
   sound.break();
 });
 document.getElementById('break').addEventListener('click', function(){
-  draw.break(function () {
-    alert("break");
-  });
-  sound.break();
+  // draw.break(function () {
+  //   alert("break");
+  // });
+  // sound.break();
+  draw.drawSwitch = false;
 });
