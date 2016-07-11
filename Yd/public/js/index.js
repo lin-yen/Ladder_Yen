@@ -1,8 +1,21 @@
 'use strict';
+window.requestAnimFrame = function()
+	{
+		return (
+			window.requestAnimationFrame       ||
+			window.webkitRequestAnimationFrame ||
+			window.mozRequestAnimationFrame    ||
+			window.oRequestAnimationFrame      ||
+			window.msRequestAnimationFrame     ||
+			function(/* function */ callback){
+				window.setTimeout(callback, 1000 / 60);
+			}
+		);
+	}();
 // 畫布
 var myCanvas,context;
 //要使用到的值
-var drawLine,result;
+var drawSTT,drawRAF,result;
 var imgUrl = '/img/';
 var lang = 'en';
 var config = {
@@ -101,7 +114,8 @@ draw.initial = function() {
   // clear Canvas
   context.clearRect(0, 0, 214, 258);
   // 清除動畫
-  clearInterval(drawLine);
+  clearTimeout(drawSTT);
+  cancelAnimationFrame(drawRAF);
   // 四個角的圖
   var imgConfig = {
     leftImg: [
@@ -150,26 +164,7 @@ draw.initial = function() {
   context.stroke();
   context.closePath();
 };
-draw.drawSwitch = true;
-draw.break = function(callback){
-  clearInterval(drawLine);
-  context.strokeStyle = '#3B3A3C';
-  context.beginPath();
-  context.moveTo(config[result].path[0].x,config[result].path[0].y);
-  for(var p in config[result].path){
-    if (config[result].path[p]) {
-      context.lineTo(config[result].path[p].x,config[result].path[p].y);
-    }
-  }
-  context.stroke();
-  context.closePath();
-  var resultImg = new Image();
-  resultImg.onload = function() {
-    context.drawImage(resultImg, config[result].imgX, config[result].imgY);
-    callback();
-  };
-  resultImg.src = '/img/lang/'+lang+'/'+config[result].imgName+'.png';
-}
+
 draw.result = function(getResult,callback){
   // 設定
   result = getResult.start + 'To' + getResult.end;
@@ -183,52 +178,104 @@ draw.result = function(getResult,callback){
     context.closePath();
     count ++;
   }
-  if(draw.drawSwitch === true){
-    // 動畫
-    setTimeout(function() {
-      var drawCount = 1;
+
+  drawSTT = setTimeout(function() {
+    var pass = new Image();
+    pass.src = '/img/first_on.png';
+    pass.onload = function() {
+      context.drawImage(pass, config[result].passX, config[result].passY);
+      setPath(config[result].path, config[result].pathCount);
+    };
+    var wayPoints = [];
+    function setPath(points, pathCount) {
+      for (var i = 1; i < points.length; i++) {
+        var xGap = points[i].x - points[i-1].x;
+        var yGap = points[i].y - points[i-1].y;
+        for (var count = 0; count < pathCount[i-1]; count++) {
+          var x = points[i-1].x + xGap * count / pathCount[i-1];
+          var y = points[i-1].y + yGap * count / pathCount[i-1];
+          wayPoints.push({ x: x, y: y });
+        }
+      }
+      var startTime = (new Date()).getTime();
+      animate(drawing, startTime);
+      return true;
+    }
+
+    function drawing(way, count){
       context.beginPath();
       context.strokeStyle = '#3B3A3C';
       context.lineCap = 'round';// 線頭與線尾變圓滑
       context.lineJoin = 'round';// 線頭與轉角處變圓滑
       context.moveTo(config[result].path[0].x,config[result].path[0].y);
-      var pass = new Image();
-      pass.src = '/img/first_on.png';
-      pass.onload = function() {
-        context.drawImage(pass, config[result].passX, config[result].passY);
-        setPath(config[result].path, config[result].pathCount);
-      };
-      function setPath(points, pathCount) {
-        var wayPoints = [];
-        for (var i = 1; i < points.length; i++) {
-          var xGap = points[i].x - points[i-1].x;
-          var yGap = points[i].y - points[i-1].y;
-          for (var count = 0; count < pathCount[i-1]; count++) {
-            var x = points[i-1].x + xGap * count / pathCount[i-1];
-            var y = points[i-1].y + yGap * count / pathCount[i-1];
-            wayPoints.push({ x: x, y: y });
-          }
-        }
-        drawLine = setInterval(function(){
-          if(drawCount >= wayPoints.length) {
-            clearInterval(drawLine);
-            context.closePath();
-            var rImg = new Image();
-            rImg.onload = function() {
-              context.drawImage(rImg, config[result].imgX, config[result].imgY);
-              callback();
-            };
-            rImg.src = '/img/lang/'+lang+'/'+config[result].imgName+'.png';
-            return true;
-          }
-          context.lineTo(wayPoints[drawCount].x, wayPoints[drawCount].y);
-          context.stroke();
-          drawCount++;
-        }, 15);
+      for (var i = 0; i <= count; i++) {
+        context.lineTo(way[i].x, way[i].y);
+      }
+      context.stroke();
+      context.closePath();
+    }
+
+    function animate(drawLine, startTime) {
+      var time = (new Date()).getTime() - startTime;
+      var linearSpeed = 16;
+      var darwcount = Math.round(linearSpeed * time / 220);
+
+      if(darwcount >= wayPoints.length) {
+        drawLine(wayPoints, wayPoints.length - 1);var rImg = new Image();
+        rImg.onload = function() {
+          context.drawImage(rImg, config[result].imgX, config[result].imgY);
+          callback();
+        };
+        rImg.src = '/img/lang/'+lang+'/'+config[result].imgName+'.png';
         return true;
       }
-    },1000);
-  }
+
+      drawLine(wayPoints, darwcount);
+
+      drawRAF = requestAnimFrame(function() {
+        animate(drawLine, startTime);
+      });
+    }
+
+      // setTimeout <--預備 點狀
+      // function smartInterval(func, interval){
+      //   var last = new Date() - interval,
+      //   now,
+      //   numMissed;
+      //
+      //   (function iterate(){
+      //     func();
+      //
+      //     // compute the number of iterations you might have missed
+      //     // if you tabbed away and the interval was restricted to 1000ms
+      //     now = +new Date();
+      //     numMissed = Math.round((now - last) / interval) - 1;
+      //
+      //     // make up for those iterations that were lost
+      //     while (numMissed--) { func(); }
+      //
+      //     last = +new Date();
+      //     setTimeout(iterate, interval);
+      //   })();
+      // }
+      // function animate(){
+      //   if(drawCount >= wayPoints.length) {
+      //     context.closePath();
+      //     var rImg = new Image();
+      //     rImg.onload = function() {
+      //       context.drawImage(rImg, config[result].imgX, config[result].imgY);
+      //       callback();
+      //     };
+      //     rImg.src = '/img/lang/'+lang+'/'+config[result].imgName+'.png';
+      //     return true;
+      //   }
+      //   context.lineTo(wayPoints[drawCount].x, wayPoints[drawCount].y);
+      //   context.stroke();
+      //   drawCount++;
+      // }
+      // smartInterval(animate, 16);
+
+  },1000);
 };
 draw.initial();
 
@@ -297,9 +344,6 @@ open.addEventListener('click', function(){
     播放動畫：draw.result({'start':'right或left','end':'right或left'},function () {
       // dosomething;
     })
-    直接秀結果：draw.break(function () {
-      // dosomething;
-    });
 --------------------------------------------------------------------------
   背景音樂：
     tag：
@@ -348,18 +392,11 @@ document.getElementById('play').addEventListener('click', function(){
     }
   };
   draw.result(result[num],function () {
-    alert("done");
+    console.log(result[num]);
   });
   sound.play();
 });
 document.getElementById('clean').addEventListener('click', function(){
   draw.initial();
   sound.break();
-});
-document.getElementById('break').addEventListener('click', function(){
-  // draw.break(function () {
-  //   alert("break");
-  // });
-  // sound.break();
-  draw.drawSwitch = false;
 });
